@@ -9,6 +9,8 @@ import HeadMap from '../HeadMap';
 import Timeline from '../Timeline';
 import Spectrum from '../Spectrum';
 import { Legend } from '../ResultsScreen';
+import Num from '../Num';
+import clsx from 'clsx';
 
 export interface HeaderInfo {
   fileName: string; sizeMb: number; version: string; patient: string; recording: string;
@@ -83,12 +85,12 @@ export function StageMontage({ study, p }: StageProps) {
       <HeadMap electrodes={ease(seg(p, 0, 0.35))} pairs={study.channels} pairsProgress={pp} caption="10–20" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="metrics">
-          <div className="metric"><span className="v">{Math.round(19 * seg(p, 0, 0.35))}</span><span className="muted small">{t.electrodes}</span></div>
-          <div className="metric"><span className="v">{drawn}</span><span className="muted small">{t.pairs}</span></div>
+          <div className="metric"><span className="v"><Num value={Math.round(19 * seg(p, 0, 0.35))} /></span><span className="muted small">{t.electrodes}</span></div>
+          <div className="metric"><span className="v"><Num value={drawn} /></span><span className="muted small">{t.pairs}</span></div>
         </div>
         {chains.map((ch, ci) => (
           <div className="chips" key={ci}>
-            {ch.map((c, i) => <span key={c} className={'chip static lit' + (ci * 4 + i < drawn ? ' on' : '')}><span className="mono">{c}</span></span>)}
+            {ch.map((c, i) => <span key={c} className={clsx('chip static lit', ci * 4 + i < drawn && 'on')}><span className="mono">{c}</span></span>)}
           </div>
         ))}
       </div>
@@ -115,7 +117,7 @@ export function StageFilter({ study, p }: StageProps) {
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="legend"><span><i className="sw" style={{ background: 'var(--trace)' }} />{t.filtered}</span><span>→</span><span>{t.raw}</span></div>
-        <div className="chips">{steps.map((s) => <span key={s.k} className={'chip static lit' + (s.on ? ' on' : '')}><span className="mono">{s.k} {t.hz}</span>{s.d && <span className="muted small">{s.d}</span>}</span>)}</div>
+        <div className="chips">{steps.map((s) => <span key={s.k} className={clsx('chip static lit', s.on && 'on')}><span className="mono">{s.k} {t.hz}</span>{s.d && <span className="muted small">{s.d}</span>}</span>)}</div>
       </div>
       <EEGCanvas page={page} channels={study.channels} fs={study.displayFs} only={only} rowH={62} gain={260} scan={scan} transform={transform} minWidth={520} />
     </>
@@ -144,11 +146,10 @@ export function StageArtifacts({ study, p }: StageProps) {
 
 /* 5 — spectrum */
 export function StageSpectrum({ study, p }: StageProps) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const page = study.pages.find((x) => x.kind === 'background') ?? study.pages[0];
   const sp = useMemo(() => psd(page, study.channels, study.displayFs), [page, study]);
   const b = study.background;
-  const k = ease(seg(p, 0.55, 0.95));
   return (
     <div className="two">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -167,9 +168,9 @@ export function StageSpectrum({ study, p }: StageProps) {
           ))}
         </div>
         <div className="metrics">
-          <div className="metric"><span className="muted small">{t.alphaPeak}</span><span className="v">{num(b.alphaPeakHz * k, lang)} {t.hz}</span></div>
-          <div className="metric"><span className="muted small">{t.slowFast}</span><span className="v">{num(b.slowFastRatio * k, lang, 2)}</span></div>
-          <div className="metric"><span className="muted small">{t.asym}</span><span className="v">{Math.round(b.asymmetryPct * k)} %</span></div>
+          <div className="metric"><span className="muted small">{t.alphaPeak}</span><span className="v"><Num value={p > 0.55 ? b.alphaPeakHz : 0} digits={1} suffix={' ' + t.hz} /></span></div>
+          <div className="metric"><span className="muted small">{t.slowFast}</span><span className="v"><Num value={p > 0.6 ? b.slowFastRatio : 0} digits={2} /></span></div>
+          <div className="metric"><span className="muted small">{t.asym}</span><span className="v"><Num value={p > 0.65 ? b.asymmetryPct : 0} suffix=" %" /></span></div>
         </div>
       </div>
     </div>

@@ -20,6 +20,12 @@ npm run build:single  # one-file build in dist-single/ (data stays in public/dat
 
 RU/EN, light/dark, phone layout.
 
+## Design
+
+Neurophysiology-workstation look: ink workflow rail with a patient wristband (desktop) or a step bar with a bottom sheet of stages (phone), porcelain work surface, hospital-teal accent, chart-paper grid under traces. Type: Geologica (headings), Onest (text), JetBrains Mono (data).
+
+Libraries: [base-ui](https://base-ui.com) selects, [NumberFlow](https://number-flow.barvian.me) animated counters, [Sonner](https://sonner.emilkowal.ski) toasts, [Vaul](https://vaul.emilkowal.ski) mobile stage sheet, [motion](https://motion.dev) transitions, [clsx](https://github.com/lukeed/clsx).
+
 ## Data
 
 | Study | Source |

@@ -40,6 +40,7 @@ export default function Timeline({ study, progress = 1, expertAlpha = 1, height 
     const Y = (v: number) => top + (1 - Math.min(v, max) / max) * (plotB - top);
     const tEnd = D * progress;
     const muted = css('--muted'), accent = css('--accent'), event = css('--event'), warn = css('--warn');
+    ctx.fillStyle = css('--paper'); ctx.fillRect(padL, top, w - padL - padR, plotB - top);
     // y grid + unit
     ctx.font = '11px ' + css('--mono'); ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;

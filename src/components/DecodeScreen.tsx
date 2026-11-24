@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Drawer } from 'vaul';
+import { toast } from 'sonner';
+import clsx from 'clsx';
+import Num from './Num';
 import type { Lang, Study } from '../data/types';
 import { useI18n } from '../i18n';
 import { mmss, num } from '../lib/format';
@@ -7,7 +12,7 @@ import { generateReport, mainSide } from '../lib/report';
 import { DURATIONS, STAGES, type HeaderInfo } from './stages/Stages';
 import { IconCheck, IconChevron, IconPause, IconPlay, IconRestart } from './Icons';
 
-interface Props { study: Study; header: HeaderInfo; onDone: () => void }
+interface Props { study: Study; header: HeaderInfo; narrow: boolean; onDone: () => void }
 interface Line { at: number; text: string; cls?: 'ok' | 'wr' }
 
 function stageLogs(i: number, s: Study, h: HeaderInfo, L: Lang): Line[] {
@@ -64,13 +69,20 @@ function stageLogs(i: number, s: Study, h: HeaderInfo, L: Lang): Line[] {
   }
 }
 
-export default function DecodeScreen({ study, header, onDone }: Props) {
+export default function DecodeScreen({ study, header, narrow, onDone }: Props) {
   const { t, lang } = useI18n();
   const [st, setSt] = useState({ i: 0, p: 0 });
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   const finished = st.i === STAGES.length - 1 && st.p >= 1;
   const logRef = useRef<HTMLDivElement>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [sheet, setSheet] = useState(false);
+  useEffect(() => { setSlot(document.getElementById('rail-stages')); }, []);
+  useEffect(() => {
+    if (finished) toast.success(t.decodeDone, { action: { label: t.toResults, onClick: onDone } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
 
   useEffect(() => {
     if (!playing || finished) return;
@@ -106,29 +118,53 @@ export default function DecodeScreen({ study, header, onDone }: Props) {
   const info = t.stages[st.i];
   const jump = (i: number) => setSt({ i, p: 0 });
 
+  const stageList = (
+    <ol className="stagelist">
+      {t.stages.map((x, i) => {
+        const state = i < st.i || (i === st.i && finished) ? 'done' : i === st.i ? 'on' : '';
+        return (
+          <li key={x.t} className={clsx(state === 'done' && 'done', state === 'on' && 'on')}>
+            <button type="button" onClick={() => { jump(i); setSheet(false); }} aria-current={i === st.i ? 'step' : undefined}>
+              <span className="n">{state === 'done' ? <IconCheck s={12} /> : i + 1}{state === 'on' && playing && <span className="ring" />}</span>
+              <span className="txt"><span className="t">{x.t}</span><span className="d">{x.d}</span></span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+  const logView = (
+    <div className="log" ref={logRef} aria-live="off">
+      {visible.map((v, k) => <div className="ln" key={k}><span>{v.ts}</span><span className={v.l.cls}>{v.l.text}</span></div>)}
+    </div>
+  );
+
   return (
     <div className="decode">
-      <nav className="panel" style={{ padding: 0 }} aria-label={t.decodeTitle}>
-        <ol className="stagelist">
-          {t.stages.map((s, i) => {
-            const cls = i < st.i || (i === st.i && finished) ? 'done' : i === st.i ? 'on' : '';
-            return (
-              <li key={s.t} className={cls} onClick={() => jump(i)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), jump(i))} role="button" tabIndex={0} aria-label={s.t} style={{ cursor: 'pointer' }} aria-current={i === st.i ? 'step' : undefined}>
-                <span className="n">{cls === 'done' ? <IconCheck s={14} /> : i + 1}{cls === 'on' && playing && <span className="ring" />}</span>
-                <span className="txt"><span className="t" style={{ display: 'block' }}>{s.t}</span><span className="d">{s.d}</span></span>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      {!narrow && slot && createPortal(stageList, slot)}
       <section className="panel stage-view">
         <div className="stage-head">
-          <div>
+          <div style={{ minWidth: 0 }}>
             <span className="eyebrow">{st.i + 1} / {STAGES.length}</span>
             <h2 style={{ fontSize: 19 }}>{info.t}</h2>
             <p className="muted small hide-sm">{info.d}</p>
           </div>
           <div className="ctrls">
+            {narrow && (
+              <Drawer.Root open={sheet} onOpenChange={setSheet}>
+                <Drawer.Trigger className="btn sm">{t.stagesBtn}</Drawer.Trigger>
+                <Drawer.Portal>
+                  <Drawer.Overlay className="sheet-ov" />
+                  <Drawer.Content className="sheet" aria-describedby={undefined}>
+                    <div className="sheet-handle" />
+                    <Drawer.Title className="sheet-title">{t.decodeTitle}</Drawer.Title>
+                    {stageList}
+                    <span className="eyebrow">{t.log}</span>
+                    {logView}
+                  </Drawer.Content>
+                </Drawer.Portal>
+              </Drawer.Root>
+            )}
             <button className="btn sm" type="button" onClick={() => setPlaying((v) => !v)} disabled={finished}>{playing ? <IconPause /> : <IconPlay />}<span className="hide-sm">{playing ? t.pause : t.play}</span></button>
             <div className="seg" role="group" aria-label={t.speed}>
               {[1, 2, 4].map((v) => <button key={v} type="button" aria-pressed={speed === v} onClick={() => setSpeed(v)}>{v}×</button>)}
@@ -145,14 +181,14 @@ export default function DecodeScreen({ study, header, onDone }: Props) {
         <div className="overall">
           <span className="time muted">{(elapsed / 1000).toFixed(1)} {t.s}</span>
           <div className="progress"><i style={{ width: `${(elapsed / totalMs) * 100}%` }} /></div>
-          <span className="time muted">{Math.round((elapsed / totalMs) * 100)}%</span>
+          <span className="time muted"><Num value={Math.round((elapsed / totalMs) * 100)} suffix="%" /></span>
         </div>
-        <div>
-          <span className="eyebrow">{t.log}</span>
-          <div className="log" ref={logRef} aria-live="off">
-            {visible.map((v, k) => <div className="ln" key={k}><span>{v.ts}</span><span className={v.l.cls}>{v.l.text}</span></div>)}
+        {!narrow && (
+          <div>
+            <span className="eyebrow">{t.log}</span>
+            {logView}
           </div>
-        </div>
+        )}
         {finished && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="row" style={{ justifyContent: 'flex-end' }}>
             <button className="btn primary" type="button" onClick={onDone}>{t.toResults}<IconChevron /></button>

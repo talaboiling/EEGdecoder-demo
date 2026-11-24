@@ -34,6 +34,10 @@ export default function EEGCanvas({ page, channels, fs, gain = 150, bands = [], 
     const plotW = w - labelW - 6, dur = 10;
     const X = (t: number) => labelW + ((t - page.t0) / dur) * plotW;
     const H = nCh * rowH;
+    // chart paper
+    ctx.fillStyle = css('--paper'); ctx.fillRect(labelW, top, plotW, H);
+    ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+    for (let r = 0; r <= nCh; r++) { const y = Math.round(top + r * rowH) + 0.5; ctx.beginPath(); ctx.moveTo(labelW, y); ctx.lineTo(labelW + plotW, y); ctx.stroke(); }
     // bands
     for (const b of bands) {
       const a = Math.max(b.start, page.t0), z = Math.min(b.end, page.t0 + dur);

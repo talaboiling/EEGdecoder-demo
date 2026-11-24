@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import clsx from 'clsx';
+import Select from './Select';
 import type { Study } from '../data/types';
 import { PAGE_LABEL, useI18n } from '../i18n';
 import { mmss, num } from '../lib/format';
@@ -61,7 +64,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
   const secText = (sec: Section) => edits[sec.key] ?? sec.sentences.map((x) => x.text).join(' ');
   const fullText = () => report.sections.map((sec) => sec.title.toUpperCase() + '\n' + secText(sec)).join('\n\n');
   const copy = async () => {
-    try { await navigator.clipboard.writeText(fullText()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard refused */ }
+    try { await navigator.clipboard.writeText(fullText()); setCopied(true); toast.success(t.copied); setTimeout(() => setCopied(false), 1600); } catch { toast.error(ru ? 'Буфер обмена недоступен — выделите текст вручную.' : 'Clipboard unavailable — select the text manually.'); }
   };
 
   const side = mainSide(hit.length ? hit : s.events);
@@ -160,10 +163,10 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
         <span className="muted small">{s.expertNote[lang]}</span>
       </motion.section>
 
-      <motion.section className={'panel summary ' + report.verdict} aria-label={t.clinicalTitle} {...fade(1)}>
+      <motion.section className={clsx('panel summary', report.verdict)} aria-label={t.clinicalTitle} {...fade(1)}>
         <div className="sum-main">
           <span className="eyebrow">{t.clinicalTitle}</span>
-          <span className={'pill ' + (report.verdict === 'normal' ? 'good' : 'bad')} style={{ alignSelf: 'flex-start' }}><span className="dot" />{t.verdict[report.verdict]}</span>
+          <span className={clsx('pill', report.verdict === 'normal' ? 'good' : 'bad')} style={{ alignSelf: 'flex-start' }}><span className="dot" />{t.verdict[report.verdict]}</span>
           <p className="sum-concl">{conclText}</p>
           <a className="small" href="#report" onClick={(e) => { e.preventDefault(); document.getElementById('report')?.scrollIntoView({ behavior: 'smooth' }); }}>{t.toReport}</a>
         </div>
@@ -190,7 +193,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
             const first = s.pages[g[0]], last = s.pages[g[g.length - 1]];
             const f = first.kind === 'false' && g.length === 1;
             return (
-              <button key={k} type="button" className={'chip' + (f ? ' false' : '')} aria-pressed={k === gi}
+              <button key={k} type="button" className={clsx('chip', f && 'false')} aria-pressed={k === gi}
                 onClick={() => setCur(g.find((i) => s.pages[i].kind === 'seizure' || s.pages[i].kind === 'discharge') ?? g[0])}>
                 <span className="mono">{g.length > 1 ? range(first.t0, last.t0 + 10) : mmss(first.t0)}</span>{groupLabel(g)}
                 {g.length > 1 && <span className="count">{t.pagesN(g.length)}</span>}
@@ -203,7 +206,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
             {group.map((i) => {
               const p = s.pages[i];
               return (
-                <button key={i} type="button" className={'pg ' + p.kind} aria-pressed={i === cur} onClick={() => setCur(i)} aria-label={`${mmss(p.t0)} ${PAGE_LABEL[lang][p.kind]}`}>
+                <button key={i} type="button" className={clsx('pg', p.kind)} aria-pressed={i === cur} onClick={() => setCur(i)} aria-label={`${mmss(p.t0)} ${PAGE_LABEL[lang][p.kind]}`}>
                   <i /><span className="mono">{mmss(p.t0)}</span>
                 </button>
               );
@@ -215,9 +218,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           <button className="btn sm" type="button" disabled={cur === s.pages.length - 1} onClick={() => setCur(cur + 1)}>{t.next}</button>
           <span className="time muted">{t.pageOf(cur + 1, s.pages.length)}</span>
           <label htmlFor="gain" className="muted small">{t.gain}</label>
-          <select id="gain" value={gain} onChange={(e) => setGain(Number(e.target.value))}>
-            {[70, 150, 300].map((g) => <option key={g} value={g}>{g} {t.perCh}</option>)}
-          </select>
+          <Select id="gain" label={t.gain} value={gain} onChange={setGain} items={[70, 150, 300].map((g) => ({ value: g, label: `${g} ${t.perCh}` }))} />
           <span className="legend"><span><i className="sw expert" />{t.lgExpert}</span><span><i className="sw evsoft" />{t.eventsTitle}</span></span>
         </div>
         <EEGCanvas page={page} channels={s.channels} fs={s.displayFs} gain={gain} bands={bands} reveal={reveal} rowH={30} />
@@ -248,7 +249,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                     <td className="mono">{e.end - e.start} {t.s}</td>
                     <td className="small">{e.channels.slice(0, 3).join(', ')}{e.note && <div className="muted">{e.note[lang]}</div>}</td>
                     <td className="mono">{num(e.peak, lang)}</td>
-                    <td><span className={'pill ' + (e.match ? 'info' : e.doubtful ? 'neutral' : 'warn')}>{e.match ? t.vHit : e.doubtful ? t.vDoubt : t.vFalse}</span></td>
+                    <td><span className={clsx('pill', e.match ? 'info' : e.doubtful ? 'neutral' : 'warn')}>{e.match ? t.vHit : e.doubtful ? t.vDoubt : t.vFalse}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -267,7 +268,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           </div>
           <div className="report">
             {report.sections.map((sec) => (
-              <div key={sec.key} className={'rsec' + (sec.key === 'conclusion' ? ' concl' : '')}>
+              <div key={sec.key} className={clsx('rsec', sec.key === 'conclusion' && 'concl')}>
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <h3>{sec.title}</h3>
                   {!signed && <button className="btn sm ghost" type="button" onClick={() => setEditing(editing === sec.key ? null : sec.key)}>{editing === sec.key ? t.done : t.edit}</button>}
@@ -277,7 +278,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                 ) : edits[sec.key] !== undefined ? <p>{edits[sec.key]}</p> : (
                   <p>{sec.sentences.map((x, i) => (
                     <span key={i}>
-                      <span className={'sent click' + (focus === sec.key + i ? ' focus' : '')} onClick={() => setFocus(sec.key + i)} onKeyDown={(e) => e.key === 'Enter' && setFocus(sec.key + i)} role="button" tabIndex={0}>{x.text}</span>{' '}
+                      <span className={clsx('sent click', focus === sec.key + i && 'focus')} onClick={() => setFocus(sec.key + i)} onKeyDown={(e) => e.key === 'Enter' && setFocus(sec.key + i)} role="button" tabIndex={0}>{x.text}</span>{' '}
                     </span>
                   ))}</p>
                 )}
@@ -293,7 +294,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                 <button className="btn sm ghost" type="button" onClick={() => setSigned(null)}>{t.unsign}</button>
               </>
             ) : (
-              <form className="row" style={{ flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (doc.trim()) { setEditing(null); setSigned({ name: doc.trim(), at: new Date().toLocaleString(ru ? 'ru-RU' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) }); } }}>
+              <form className="row" style={{ flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (doc.trim()) { setEditing(null); toast.success(t.approvedToast, { description: doc.trim() }); setSigned({ name: doc.trim(), at: new Date().toLocaleString(ru ? 'ru-RU' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) }); } }}>
                 <input id="physician" className="txt" placeholder={t.physicianPh} value={doc} onChange={(e) => setDoc(e.target.value)} aria-label={t.physician} />
                 <button className="btn primary" type="submit" disabled={!doc.trim()}>{t.sign}</button>
               </form>
@@ -329,7 +330,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
             <div className="det" key={x.k}>
               <span className="muted lbl">{x.k}</span>
               <span className="val">{x.v}</span>
-              {x.sub && <span className={'sub' + ('warn' in x && x.warn ? ' warn' : ' muted')}>{x.sub}</span>}
+              {x.sub && <span className={clsx('sub', 'warn' in x && x.warn ? 'warn' : 'muted')}>{x.sub}</span>}
             </div>
           ))}
         </div>

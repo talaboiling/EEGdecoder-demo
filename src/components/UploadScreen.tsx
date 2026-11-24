@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { toast } from 'sonner';
+import clsx from 'clsx';
+import Select from './Select';
+import Num from './Num';
 import { LIBRARY, type StudyMeta } from '../data/studies';
 import { useI18n } from '../i18n';
 import { readEdfHeader } from '../lib/edf';
@@ -50,6 +54,7 @@ export default function UploadScreen({ onStart }: Props) {
       setPhase('uploading');
     } catch {
       setErr(t.notEdf);
+      toast.error(t.notEdf);
       setPhase('idle');
     }
   };
@@ -64,7 +69,7 @@ export default function UploadScreen({ onStart }: Props) {
         <AnimatePresence mode="wait">
           {phase === 'idle' ? (
             <motion.div key="drop" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              className={'drop' + (over ? ' over' : '')}
+              className={clsx('drop', over && 'over')}
               onDragOver={(e) => { e.preventDefault(); setOver(true); }}
               onDragLeave={() => setOver(false)}
               onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) file(f); }}>
@@ -83,17 +88,17 @@ export default function UploadScreen({ onStart }: Props) {
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{name}</div>
                   <div className="muted small mono">
-                    {phase === 'uploading' ? `${(size * prog).toFixed(1)} / ${size} ${t.mb} · ${(size / 2.2).toFixed(1)} ${t.mb}/s` : `${size} ${t.mb}`}
+                    {phase === 'uploading' ? <><Num value={Math.round(size * prog)} /> / {size} {t.mb} · {(size / 2.2).toFixed(1)} {t.mb}/s</> : `${size} ${t.mb}`}
                   </div>
                 </div>
-                <span className={'pill ' + (phase === 'ready' ? 'good' : 'info')}>{phase === 'uploading' ? t.uploading : phase === 'verifying' ? t.verifying : t.ready}</span>
+                <span className={clsx('pill', phase === 'ready' ? 'good' : 'info')}>{phase === 'uploading' ? t.uploading : phase === 'verifying' ? t.verifying : t.ready}</span>
               </div>
               <div className="progress"><i style={{ width: `${(phase === 'uploading' ? prog : 1) * 100}%`, background: phase === 'ready' ? 'var(--good)' : undefined }} /></div>
               {phase !== 'uploading' && (
                 <ul className="checks">
                   {t.checks.map((c, i) => {
                     const on = phase === 'ready' || prog > (i + 1) / (t.checks.length + 1);
-                    return <motion.li key={c} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}><span className={'tick' + (on ? '' : ' wait')}>{on ? '✓' : ''}</span>{c}</motion.li>;
+                    return <motion.li key={c} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}><span className={clsx('tick', !on && 'wait')}>{on ? '✓' : ''}</span>{c}</motion.li>;
                   })}
                 </ul>
               )}
@@ -116,11 +121,9 @@ export default function UploadScreen({ onStart }: Props) {
                   {own && (
                     <div className="banner" style={{ background: 'var(--accent-soft)', color: 'var(--fg)', flexDirection: 'column', gap: 8 }}>
                       <span>{t.replayNote}</span>
-                      <label className="row small" htmlFor="ref-sel"><span className="muted">{t.profile}</span>
-                        <select id="ref-sel" value={ref} onChange={(e) => setRef(e.target.value)}>
-                          {LIBRARY.map((m) => <option key={m.id} value={m.id}>{m.file} · {m.title[lang]}</option>)}
-                        </select>
-                      </label>
+                      <div className="row small"><label className="muted" htmlFor="ref-sel">{t.profile}</label>
+                        <Select id="ref-sel" label={t.profile} value={ref} onChange={setRef} items={LIBRARY.map((m) => ({ value: m.id, label: `${m.file} · ${m.title[lang]}` }))} />
+                      </div>
                     </div>
                   )}
                   <div className="row">
@@ -138,14 +141,14 @@ export default function UploadScreen({ onStart }: Props) {
         <div className="panel-h"><h2 id="lib-h">{t.library}</h2><span className="muted small">{LIBRARY.length}</span></div>
         <div className="lib">
           {LIBRARY.map((m, i) => (
-            <motion.button key={m.id} type="button" className="study" onClick={() => pick(m)} disabled={phase === 'uploading' || phase === 'verifying'}
+            <motion.button key={m.id} type="button" onClick={() => pick(m)} disabled={phase === 'uploading' || phase === 'verifying'}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }} whileTap={{ scale: 0.99 }}
-              style={meta?.id === m.id ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined}>
+              className={clsx('study', meta?.id === m.id && 'sel-on')}>
               <span className="ico"><IconFile /></span>
               <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span className="t">{m.title[lang]}</span>
                 <span className="m mono">{m.file} · {m.patient.code} · {t.age(m.patient.age)}, {t.sex[m.patient.sex]} · {mmss(m.durationS)}</span>
-                <span><span className={'pill ' + (m.source === 'real' ? 'good' : 'info')}>{m.tag[lang]}</span></span>
+                <span><span className="tag-out">{m.tag[lang]}</span></span>
               </span>
               <IconChevron />
             </motion.button>
