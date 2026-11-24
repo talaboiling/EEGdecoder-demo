@@ -4,7 +4,7 @@ import type { Study } from '../data/types';
 import { PAGE_LABEL, useI18n } from '../i18n';
 import { mmss, num } from '../lib/format';
 import { psd } from '../lib/spectrum';
-import { generateReport, mainSide, reportText, type Section } from '../lib/report';
+import { generateReport, mainSide, topChannels, type Section } from '../lib/report';
 import { useReveal } from '../lib/useCanvas';
 import EEGCanvas, { type Band } from './EEGCanvas';
 import Timeline from './Timeline';
@@ -14,6 +14,19 @@ import type { HeaderInfo } from './stages/Stages';
 interface Props { study: Study; header: HeaderInfo; onNew: () => void }
 
 const fade = (i: number) => ({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.06 * i, duration: 0.3 } });
+
+export function Legend({ doubt = true }: { doubt?: boolean }) {
+  const { t } = useI18n();
+  return (
+    <div className="legend">
+      <span><i className="sw expert" />{t.lgExpert}</span>
+      <span><i className="sw hit" />{t.lgHit}</span>
+      <span><i className="sw false" />{t.lgFalse}</span>
+      {doubt && <span><i className="sw doubt" />{t.lgDoubt}</span>}
+      <span><i className="sw thr" />{t.lgThr}</span>
+    </div>
+  );
+}
 
 export default function ResultsScreen({ study: s, header, onNew }: Props) {
   const { t, lang } = useI18n();
@@ -46,7 +59,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
   };
 
   const secText = (sec: Section) => edits[sec.key] ?? sec.sentences.map((x) => x.text).join(' ');
-  const fullText = () => report.sections.map((sec) => sec.title.toUpperCase() + '\n' + secText(sec)).join('\n\n') || reportText(report);
+  const fullText = () => report.sections.map((sec) => sec.title.toUpperCase() + '\n' + secText(sec)).join('\n\n');
   const copy = async () => {
     try { await navigator.clipboard.writeText(fullText()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard refused */ }
   };
@@ -54,17 +67,45 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
   const side = mainSide(hit.length ? hit : s.events);
   const sideTxt = { ru: { right: 'Справа', left: 'Слева', bilateral: 'Билатерально', generalized: 'Генерализованно' }, en: { right: 'Right', left: 'Left', bilateral: 'Bilateral', generalized: 'Generalized' } }[lang][side];
 
-  const tiles = s.expert.length ? [
-    { k: t.tileExpert, v: s.stats.detected ? t.found : t.missed, pill: s.stats.latencyS !== null ? t.latency(s.stats.latencyS) : '', cls: s.stats.detected ? 'good' : 'bad' },
-    { k: t.tileSide, v: sideTxt, pill: t.matches, cls: 'good' },
-    { k: t.tileFalse, v: `${s.stats.falseAlarms} ${t.perRecord}`, pill: t.perHour(num(s.stats.falsePerHour, lang, s.stats.falsePerHour % 1 ? 1 : 0)), cls: s.stats.falsePerHour > 5 ? 'warn' : 'good' },
-    { k: t.tileThr, v: `z > ${s.threshold}`, pill: t.thrNote, cls: '' },
-  ] : [
-    { k: t.tileEpi, v: t.none, pill: t.matches, cls: 'good' },
-    { k: t.tileRhythm, v: `α ${num(s.background.alphaPeakHz, lang)} ${t.hz}`, pill: `${s.background.alphaAmpUv} ${t.uv}`, cls: 'good' },
-    { k: t.tileFalse, v: `${s.stats.falseAlarms} ${t.perRecord}`, pill: t.perHour(num(s.stats.falsePerHour, lang, 0)), cls: 'good' },
-    { k: t.tileThr, v: `z > ${s.threshold}`, pill: t.thrNote, cls: '' },
+  const range = (a: number, z: number) => `${mmss(a)}–${mmss(z)}`;
+  const conclusion = report.sections.find((x) => x.key === 'conclusion')!;
+  const conclText = secText(conclusion);
+  const plural = (n: number, f: [string, string, string]) => f[n % 10 === 1 && n % 100 !== 11 ? 0 : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 1 : 2];
+  const finding = hit.length
+    ? s.profile === 'absence'
+      ? { v: ru ? 'Разряды «пик–волна» 3 Гц' : '3 Hz spike-and-wave', sub: ru ? `${hit.length} ${plural(hit.length, ['эпизод', 'эпизода', 'эпизодов'])}, провоцируются ГВ` : `${hit.length} episodes, provoked by HV` }
+      : { v: ru ? 'Электрографический приступ' : 'Electrographic seizure', sub: range(Math.min(...hit.map((e) => e.start)), Math.max(...hit.map((e) => e.end))) }
+    : { v: ru ? 'Эпилептиформной активности нет' : 'No epileptiform activity', sub: ru ? 'по всей записи' : 'whole record' };
+  const facts = [
+    { k: t.mainFinding, v: finding.v, sub: finding.sub },
+    { k: t.tileSide, v: hit.length ? sideTxt : '—', sub: hit.length ? topChannels(hit, 3).join(', ') : t.noneShort },
+    s.background.alphaPeakHz <= 8 && s.background.slowFastRatio > 3
+      ? { k: t.tileRhythm, v: t.slowBg, sub: `${t.noAlpha} · ${t.slowFast.toLowerCase()} ${num(s.background.slowFastRatio, lang, 2)}` }
+      : { k: t.tileRhythm, v: `α ${num(s.background.alphaPeakHz, lang)} ${t.hz}`, sub: `${s.background.alphaAmpUv} ${t.uv} · ${t.reactivity.toLowerCase()}: ${s.background.reactivity ? t.preserved : t.notTested}` },
   ];
+
+  const detTiles = [
+    s.expert.length
+      ? { k: t.tileExpert, v: s.stats.detected ? t.found : t.missed, sub: s.stats.latencyS !== null ? t.latency(s.stats.latencyS) : '' }
+      : { k: t.tileExpert, v: '—', sub: t.noneShort },
+    { k: t.tileFalse, v: `${s.stats.falseAlarms} ${t.perRecord}`, sub: t.perHour(num(s.stats.falsePerHour, lang, s.stats.falsePerHour % 1 ? 1 : 0)), warn: s.stats.falsePerHour > 5 },
+    { k: t.tileThr, v: `z > ${s.threshold}`, sub: t.thrNote },
+  ];
+
+  // group contiguous pages into episodes
+  const groups: number[][] = [];
+  s.pages.forEach((p, i) => {
+    const g = groups[groups.length - 1];
+    if (g && p.t0 - s.pages[g[g.length - 1]].t0 <= 10) g.push(i); else groups.push([i]);
+  });
+  const gi = groups.findIndex((g) => g.includes(cur));
+  const group = groups[gi];
+  const groupLabel = (g: number[]) => {
+    const kinds = g.map((i) => s.pages[i].kind);
+    const k = kinds.find((x) => x === 'seizure' || x === 'discharge') ?? kinds[0];
+    return PAGE_LABEL[lang][k];
+  };
+  const step = (d: -1 | 1) => setCur((c) => Math.min(s.pages.length - 1, Math.max(0, c + d)));
 
   const validation = s.profile === 'focalSeizure' ? (ru ? [
     ['Работает:', 'программа читает настоящий EDF, строит монтаж на 16 электродах и находит отмеченный экспертом приступ с правильной стороной.'],
@@ -100,9 +141,10 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
         <div className="study-head">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <span className="eyebrow">{t.resultsTitle}</span>
-            <h1>{s.file.replace('.edf', '')} · {s.patient.code}</h1>
+            <h1>{s.file.replace('.edf', '')}</h1>
             <p className="muted">{s.indication[lang]}</p>
             <div className="facts muted">
+              <span>ID: <b className="mono">{s.patient.code}</b></span>
               <span>{t.patient}: <b>{t.age(s.patient.age)}, {t.sex[s.patient.sex]}</b></span>
               <span>{t.duration}: <b className="mono">{mmss(s.durationS)}</b></span>
               <span>{t.fs}: <b>{s.fs} {t.hz}</b></span>
@@ -111,52 +153,72 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
             </div>
           </div>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <span className={'pill ' + (s.source === 'real' ? 'good' : 'info')}>{s.source === 'real' ? t.realBadge : t.synthBadge}</span>
-            <span className={'pill ' + (report.verdict === 'normal' ? 'good' : 'bad')}><span className="dot" />{t.verdict[report.verdict]}</span>
+            <span className="tag-out">{s.source === 'real' ? t.realBadge : t.synthBadge}</span>
             <button className="btn sm" type="button" onClick={onNew}>{t.newStudy}</button>
           </div>
         </div>
         <span className="muted small">{s.expertNote[lang]}</span>
       </motion.section>
 
-      <section className="tiles" aria-label={t.resultsTitle}>
-        {tiles.map((x, i) => (
-          <motion.div className="tile" key={x.k} {...fade(i + 1)}>
-            <span className="muted small">{x.k}</span>
-            <span className="big">{x.v}</span>
-            {x.pill && (x.cls ? <span className={'pill ' + x.cls} style={{ alignSelf: 'flex-start' }}>{x.pill}</span> : <span className="muted small">{x.pill}</span>)}
-          </motion.div>
+      <motion.section className={'panel summary ' + report.verdict} aria-label={t.clinicalTitle} {...fade(1)}>
+        <div className="sum-main">
+          <span className="eyebrow">{t.clinicalTitle}</span>
+          <span className={'pill ' + (report.verdict === 'normal' ? 'good' : 'bad')} style={{ alignSelf: 'flex-start' }}><span className="dot" />{t.verdict[report.verdict]}</span>
+          <p className="sum-concl">{conclText}</p>
+          <a className="small" href="#report" onClick={(e) => { e.preventDefault(); document.getElementById('report')?.scrollIntoView({ behavior: 'smooth' }); }}>{t.toReport}</a>
+        </div>
+        {facts.map((f) => (
+          <div className="sum-fact" key={f.k}>
+            <span className="muted lbl">{f.k}</span>
+            <span className="val">{f.v}</span>
+            <span className="muted sub">{f.sub}</span>
+          </div>
         ))}
-      </section>
+      </motion.section>
 
       <motion.section className="panel" {...fade(5)}>
-        <div className="panel-h"><h2>{t.timeline}</h2><span className="time muted">{mmss(s.durationS)}</span></div>
-        <div className="legend">
-          <span><i className="sw" style={{ background: 'var(--expert)', border: '1px solid var(--accent)' }} />{t.lgExpert}</span>
-          <span><i className="sw" style={{ background: 'var(--accent)' }} />{t.lgHit}</span>
-          <span><i className="sw" style={{ background: 'var(--event)' }} />{t.lgFalse}</span>
-          <span><i className="sw" style={{ height: 2, background: 'var(--muted)' }} />{t.lgThr}</span>
-        </div>
-        <Timeline study={s} marker={page.t0} onPick={goT} label={t.timeline} />
+        <div className="panel-h"><h2>{t.timeline}</h2><span className="time muted">{t.durationLbl} {mmss(s.durationS)}</span></div>
+        <Legend />
+        <Timeline study={s} marker={page.t0} onPick={goT} onStep={step} label={t.timeline} />
+        <span className="muted small">{t.timelineHint}</span>
       </motion.section>
 
       <motion.section className="panel" id="viewer" {...fade(6)}>
         <div className="panel-h"><h2>{t.viewer}</h2><span className="time">{mmss(page.t0)} – {mmss(page.t0 + 10)} · {PAGE_LABEL[lang][page.kind]}</span></div>
-        <div className="chips" role="group">
-          {s.pages.map((p, i) => (
-            <button key={i} type="button" className={'chip' + (p.kind === 'false' ? ' false' : '')} aria-pressed={i === cur} onClick={() => setCur(i)}>
-              <span className="mono">{mmss(p.t0)}</span>{PAGE_LABEL[lang][p.kind]}
-            </button>
-          ))}
+        <div className="chips" role="group" aria-label={t.episodes}>
+          {groups.map((g, k) => {
+            const first = s.pages[g[0]], last = s.pages[g[g.length - 1]];
+            const f = first.kind === 'false' && g.length === 1;
+            return (
+              <button key={k} type="button" className={'chip' + (f ? ' false' : '')} aria-pressed={k === gi}
+                onClick={() => setCur(g.find((i) => s.pages[i].kind === 'seizure' || s.pages[i].kind === 'discharge') ?? g[0])}>
+                <span className="mono">{g.length > 1 ? range(first.t0, last.t0 + 10) : mmss(first.t0)}</span>{groupLabel(g)}
+                {g.length > 1 && <span className="count">{t.pagesN(g.length)}</span>}
+              </button>
+            );
+          })}
         </div>
+        {group.length > 1 && (
+          <div className="pages" role="group" aria-label={groupLabel(group)}>
+            {group.map((i) => {
+              const p = s.pages[i];
+              return (
+                <button key={i} type="button" className={'pg ' + p.kind} aria-pressed={i === cur} onClick={() => setCur(i)} aria-label={`${mmss(p.t0)} ${PAGE_LABEL[lang][p.kind]}`}>
+                  <i /><span className="mono">{mmss(p.t0)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="ctrl">
           <button className="btn sm" type="button" disabled={cur === 0} onClick={() => setCur(cur - 1)}>{t.prev}</button>
           <button className="btn sm" type="button" disabled={cur === s.pages.length - 1} onClick={() => setCur(cur + 1)}>{t.next}</button>
+          <span className="time muted">{t.pageOf(cur + 1, s.pages.length)}</span>
           <label htmlFor="gain" className="muted small">{t.gain}</label>
           <select id="gain" value={gain} onChange={(e) => setGain(Number(e.target.value))}>
             {[70, 150, 300].map((g) => <option key={g} value={g}>{g} {t.perCh}</option>)}
           </select>
-          <span className="legend"><span><i className="sw" style={{ background: 'var(--expert)', border: '1px solid var(--accent)' }} />{t.lgExpert}</span><span><i className="sw" style={{ background: 'var(--event-soft)', border: '1px solid var(--event)' }} />{t.eventsTitle}</span></span>
+          <span className="legend"><span><i className="sw expert" />{t.lgExpert}</span><span><i className="sw evsoft" />{t.eventsTitle}</span></span>
         </div>
         <EEGCanvas page={page} channels={s.channels} fs={s.displayFs} gain={gain} bands={bands} reveal={reveal} rowH={30} />
       </motion.section>
@@ -186,7 +248,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                     <td className="mono">{e.end - e.start} {t.s}</td>
                     <td className="small">{e.channels.slice(0, 3).join(', ')}{e.note && <div className="muted">{e.note[lang]}</div>}</td>
                     <td className="mono">{num(e.peak, lang)}</td>
-                    <td><span className={'pill ' + (e.match ? 'good' : 'warn')}>{e.match ? t.vHit : t.vFalse}</span></td>
+                    <td><span className={'pill ' + (e.match ? 'info' : e.doubtful ? 'neutral' : 'warn')}>{e.match ? t.vHit : e.doubtful ? t.vDoubt : t.vFalse}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -196,7 +258,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
       </div>
 
       <div className="cols">
-        <motion.section className="panel" {...fade(9)}>
+        <motion.section className="panel" id="report" {...fade(9)}>
           <div className="panel-h">
             <h2>{t.reportTitle}</h2>
             <div className="row">
@@ -215,7 +277,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                 ) : edits[sec.key] !== undefined ? <p>{edits[sec.key]}</p> : (
                   <p>{sec.sentences.map((x, i) => (
                     <span key={i}>
-                      <span className={'sent click' + (focus === sec.key + i ? ' focus' : '')} onClick={() => setFocus(sec.key + i)}>{x.text}</span>{' '}
+                      <span className={'sent click' + (focus === sec.key + i ? ' focus' : '')} onClick={() => setFocus(sec.key + i)} onKeyDown={(e) => e.key === 'Enter' && setFocus(sec.key + i)} role="button" tabIndex={0}>{x.text}</span>{' '}
                     </span>
                   ))}</p>
                 )}
@@ -245,7 +307,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           <p className="muted small">{ru ? 'Каждое предложение черновика получено правилом из измеренных показателей. Нажмите на предложение или основание, чтобы перейти к фрагменту ЭЭГ.' : 'Each draft sentence comes from a rule applied to measured values. Tap a sentence or its evidence to open the EEG page.'}</p>
           <div className="why">
             {report.sections.flatMap((sec) => sec.sentences.map((x, i) => (
-              <div key={sec.key + i} className="why-item" style={focus === sec.key + i ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined} onMouseEnter={() => setFocus(sec.key + i)}>
+              <div key={sec.key + i} className="why-item" style={focus === sec.key + i ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined} onMouseEnter={() => setFocus(sec.key + i)} onFocus={() => setFocus(sec.key + i)}>
                 <span className="eyebrow">{sec.title}</span>
                 <div className="rulecard"><b>{t.rule}:</b> {x.rule}</div>
                 <div className="chips">
@@ -260,7 +322,18 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
       </div>
 
       <motion.section className="panel" {...fade(11)}>
-        <h2>{t.validTitle}</h2>
+        <div className="panel-h"><h2>{t.detectorCheck}</h2></div>
+        <p className="muted small">{t.detectorLead}</p>
+        <div className="det-tiles">
+          {detTiles.map((x) => (
+            <div className="det" key={x.k}>
+              <span className="muted lbl">{x.k}</span>
+              <span className="val">{x.v}</span>
+              {x.sub && <span className={'sub' + ('warn' in x && x.warn ? ' warn' : ' muted')}>{x.sub}</span>}
+            </div>
+          ))}
+        </div>
+        <h3>{t.validTitle}</h3>
         <ul className="plain">{validation.map(([a, b]) => <li key={a}><strong>{a}</strong> {b}</li>)}</ul>
         {s.citation && <p className="muted small">{t.source}: <a href={s.citation.url} target="_blank" rel="noreferrer">{s.citation.text}</a></p>}
       </motion.section>

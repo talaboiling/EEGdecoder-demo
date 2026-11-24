@@ -233,6 +233,63 @@ a { color: var(--accent); }
   .stage-view { padding: 12px; }
   .stage-body { min-height: 0; }
   .log { height: 110px; }
-  .chip { min-height: 30px; padding: 4px 8px; }
   h1 { font-size: 20px; }
+}
+
+/* ---- critique pass: summary-first layout, timeline encoding, page navigator, a11y ---- */
+.tag-out { display: inline-flex; align-items: center; font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill { font-size: 13px; }
+.pill.neutral { background: var(--panel-2); color: var(--muted); border: 1px dashed var(--warn); }
+.summary { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)); gap: 0; padding: 0; border-left: 4px solid var(--bad); }
+.summary.normal { border-left-color: var(--good); }
+.summary > div { padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.summary > div + div { border-left: 1px solid var(--line); }
+.sum-concl { font-size: 17px; line-height: 1.45; font-weight: 600; text-wrap: pretty; }
+.sum-fact .lbl, .det .lbl { font-size: 14px; }
+.sum-fact .val { font-size: 19px; font-weight: 600; line-height: 1.25; }
+.sum-fact .sub { font-size: 14px; overflow-wrap: anywhere; }
+@media (max-width: 980px) {
+  .summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .summary .sum-main { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+  .summary .sum-main + div { border-left: 0; }
+}
+@media (max-width: 620px) {
+  .summary { grid-template-columns: 1fr; }
+  .summary > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .summary .sum-main { border-bottom: 0; }
+}
+.sw.expert { background: var(--expert); border: 1px solid var(--accent); }
+.sw.hit { background: var(--accent); }
+.sw.false { background: repeating-linear-gradient(135deg, var(--event) 0 1.6px, transparent 1.6px 4.5px); border: 1px solid var(--event); }
+.sw.doubt { border: 1.5px dashed var(--warn); }
+.sw.thr { height: 0; border-top: 2px dashed var(--muted); border-radius: 0; }
+.sw.evsoft { background: var(--event-soft); border: 1px solid var(--event); }
+.legend { font-size: 13px; }
+.tl-focus { border-radius: 6px; }
+.tl-focus:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.chip { min-height: 40px; font-size: 13.5px; }
+.chip .count { font: 600 12px var(--mono); padding: 1px 6px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+.chip[aria-pressed="true"] .count { background: rgba(255, 255, 255, 0.22); color: inherit; }
+.chip.hitc { border-color: var(--accent); color: var(--accent); }
+.chip.doubtc { border: 1px dashed var(--warn); }
+.pages { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.pg { flex: 1 0 64px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; color: var(--muted); padding: 4px; }
+.pg i { display: block; width: 100%; height: 6px; border-radius: 3px; background: var(--grid-major); }
+.pg.seizure i, .pg.discharge i { background: var(--accent); }
+.pg.false i { background: repeating-linear-gradient(135deg, var(--event) 0 1.6px, transparent 1.6px 4.5px); }
+.pg .mono { font-size: 12px; }
+.pg[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent); }
+.det-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.det { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); }
+.det .val { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.det .sub { font-size: 13.5px; }
+.det .sub.warn { color: var(--warn); font-weight: 600; }
+.btn.sm { min-height: 38px; }
+.seg button { min-height: 38px; }
+.lang button { min-height: 36px; }
+table.ev { font-size: 14px; }
+@media (max-width: 600px) {
+  .chip { min-height: 44px; padding: 6px 10px; }
+  .btn, .btn.sm, .seg button { min-height: 44px; }
+  .pg { flex-basis: 58px; }
 }

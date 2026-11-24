@@ -51,6 +51,13 @@ async function loadPn00(): Promise<Study> {
       ? { ru: 'вероятно, движение или миограмма', en: 'likely movement or muscle artifact' }
       : { ru: 'неясный генез, просмотр врачом', en: 'unclear origin, needs review' },
   }));
+  const ex = d.result.expert;
+  events.forEach((e) => {
+    if (!e.match && e.start >= ex.end && e.start <= ex.end + 60) {
+      e.doubtful = true;
+      e.note = { ru: 'сразу после приступа, вероятно постиктальные изменения', en: 'right after the seizure, likely post-ictal changes' };
+    }
+  });
   const pages: Page[] = d.pages.map((p: any) => ({ t0: p.t0, kind: RU_KIND[p.label] ?? 'near', data: p.data })).sort((x: Page, y: Page) => x.t0 - y.t0);
   const b = d.background;
   return {

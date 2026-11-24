@@ -20,6 +20,7 @@ export interface DetEvent {
   channels: string[];
   side: Side;
   match: boolean; // overlaps expert annotation
+  doubtful?: boolean; // unmatched but adjacent to an expert event (e.g. post-ictal)
   note?: L10n; // program's guess for unmatched events
 }
 

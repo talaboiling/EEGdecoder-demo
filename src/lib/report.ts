@@ -29,7 +29,8 @@ export function generateReport(s: Study, L: Lang): Report {
   const ru = L === 'ru';
   const b = s.background;
   const hit = s.events.filter((e) => e.match);
-  const other = s.events.filter((e) => !e.match);
+  const other = s.events.filter((e) => !e.match && !e.doubtful);
+  const doubt = s.events.filter((e) => e.doubtful);
   const sections: Section[] = [];
   const bgEv: Evidence[] = [
     { label: (ru ? 'α-пик ' : 'α peak ') + num(b.alphaPeakHz, L) + (ru ? ' Гц' : ' Hz') },
@@ -134,9 +135,16 @@ export function generateReport(s: Study, L: Lang): Report {
       evidence: [{ label: ru ? 'детектор, вся запись' : 'detector, whole record' }],
     });
   }
+  doubt.forEach((e) => pt.push({
+    text: ru
+      ? `Эпизод ${mmss(e.start)}–${mmss(e.end)} следует непосредственно за приступом — ${e.note?.ru ?? 'генез неясен'}; требует просмотра врачом.`
+      : `The episode at ${mmss(e.start)}–${mmss(e.end)} directly follows the seizure (${e.note?.en ?? 'unclear origin'}); needs physician review.`,
+    rule: ru ? 'событие выше порога в пределах 60 с после окончания приступа → «сомнительное, вероятно постиктальное»' : 'above-threshold event within 60 s after seizure end → “doubtful, likely post-ictal”',
+    evidence: [{ label: `${mmss(e.start)}–${mmss(e.end)} · z ${num(e.peak, L)}`, t: e.start }],
+  }));
   if (other.length) pt.push({
     text: ru
-      ? `Ещё ${other.length} ${other.length === 1 ? 'эпизод отмечен' : other.length < 5 ? 'эпизода отмечены' : 'эпизодов отмечены'} программой как сомнительные (${other[0].note?.ru ?? 'артефакт'}) — требуют просмотра врачом.`
+      ? `${doubt.length ? 'Ещё ' : ''}${other.length} ${other.length === 1 ? 'эпизод отмечен' : other.length < 5 ? 'эпизода отмечены' : 'эпизодов отмечены'} программой как ${other.length === 1 ? 'сомнительный' : 'сомнительные'} (${other[0].note?.ru ?? 'артефакт'}) — требуют просмотра врачом.`
       : `${other.length} more episode${other.length === 1 ? ' was' : 's were'} flagged as doubtful (${other[0].note?.en ?? 'artifact'}) and need physician review.`,
     rule: ru ? 'высокочастотная мощность или лобная локализация без эволюции → «вероятный артефакт»' : 'high-frequency power or frontal-only without evolution → “probable artifact”',
     evidence: other.map((e) => ({ label: mmss(e.start), t: e.start })),

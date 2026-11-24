@@ -113,7 +113,7 @@ export default function DecodeScreen({ study, header, onDone }: Props) {
           {t.stages.map((s, i) => {
             const cls = i < st.i || (i === st.i && finished) ? 'done' : i === st.i ? 'on' : '';
             return (
-              <li key={s.t} className={cls} onClick={() => jump(i)} style={{ cursor: 'pointer' }} aria-current={i === st.i ? 'step' : undefined}>
+              <li key={s.t} className={cls} onClick={() => jump(i)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), jump(i))} role="button" tabIndex={0} aria-label={s.t} style={{ cursor: 'pointer' }} aria-current={i === st.i ? 'step' : undefined}>
                 <span className="n">{cls === 'done' ? <IconCheck s={14} /> : i + 1}{cls === 'on' && playing && <span className="ring" />}</span>
                 <span className="txt"><span className="t" style={{ display: 'block' }}>{s.t}</span><span className="d">{s.d}</span></span>
               </li>

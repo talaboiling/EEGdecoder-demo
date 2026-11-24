@@ -8,6 +8,7 @@ import EEGCanvas, { type Band } from '../EEGCanvas';
 import HeadMap from '../HeadMap';
 import Timeline from '../Timeline';
 import Spectrum from '../Spectrum';
+import { Legend } from '../ResultsScreen';
 
 export interface HeaderInfo {
   fileName: string; sizeMb: number; version: string; patient: string; recording: string;
@@ -190,15 +191,10 @@ export function StageDetect({ study, p }: StageProps) {
         <span className="pill info">z &gt; {study.threshold} · {t.eventsFound(found.length)}</span>
       </div>
       <Timeline study={study} progress={prog} expertAlpha={cmp} height={170} label={t.timeline} />
-      <div className="legend">
-        <span><i className="sw" style={{ background: 'var(--expert)', border: '1px solid var(--accent)' }} />{t.lgExpert}</span>
-        <span><i className="sw" style={{ background: 'var(--accent)' }} />{t.lgHit}</span>
-        <span><i className="sw" style={{ background: 'var(--event)' }} />{t.lgFalse}</span>
-        <span><i className="sw" style={{ height: 2, background: 'var(--muted)' }} />{t.lgThr}</span>
-      </div>
+<Legend doubt={study.events.some((e) => e.doubtful)} />
       <div className="chips">
         {found.map((e) => (
-          <span key={e.start} className={'chip static' + (cmp > 0.5 && !e.match ? ' false' : '')} style={cmp > 0.5 && e.match ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}>
+          <span key={e.start} className={'chip static' + (cmp > 0.5 ? (e.match ? ' hitc' : e.doubtful ? ' doubtc' : ' false') : '')}>
             <span className="mono">{mmss(e.start)}</span><span className="muted small">z {e.peak}</span>
           </span>
         ))}
@@ -206,8 +202,9 @@ export function StageDetect({ study, p }: StageProps) {
       {cmp > 0 && (
         <div className="row" style={{ opacity: cmp }}>
           <span className="eyebrow">{t.expertCompare}:</span>
-          <span className="pill good">{hits} {t.vHit}</span>
-          <span className="pill warn">{study.events.length - hits} {t.vFalse}</span>
+          <span className="pill info">{hits} {t.vHit}</span>
+          {study.events.some((e) => e.doubtful) && <span className="pill neutral">{study.events.filter((e) => e.doubtful).length} {t.vDoubt}</span>}
+          <span className="pill warn">{study.events.filter((e) => !e.match && !e.doubtful).length} {t.vFalse}</span>
         </div>
       )}
     </>
