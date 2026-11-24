@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 import Select from './Select';
@@ -39,7 +39,9 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
   const [gain, setGain] = useState(150);
   const report = useMemo(() => generateReport(s, lang), [s, lang]);
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [showFalse, setShowFalse] = useState(false);
+  const [active, setActive] = useState('sum');
   const [focus, setFocus] = useState<string | null>(null);
   const [doc, setDoc] = useState('');
   const [signed, setSigned] = useState<{ name: string; at: string } | null>(null);
@@ -138,8 +140,25 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
     ['Limitation:', 'the recording is synthetic, built from a childhood absence epilepsy pattern to test text templates.'],
   ]);
 
+  const SECS = ['sum', 'eeg', 'findings', 'report'];
+  useEffect(() => {
+    const io = new IntersectionObserver((entries) => {
+      const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (vis[0]) setActive(vis[0].target.id === 'viewer' ? 'eeg' : vis[0].target.id);
+    }, { rootMargin: '-60px 0px -55% 0px' });
+    [...SECS, 'viewer'].forEach((id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <nav className="secbar" aria-label={t.resultsTitle}>
+        {SECS.map((id, i) => (
+          <button key={id} type="button" aria-current={active === id ? 'true' : undefined} onClick={() => jumpTo(id)}>{t.secNav[i]}</button>
+        ))}
+      </nav>
       <motion.section className="panel" {...fade(0)}>
         <div className="study-head">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -163,12 +182,12 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
         <span className="muted small">{s.expertNote[lang]}</span>
       </motion.section>
 
-      <motion.section className={clsx('panel summary', report.verdict)} aria-label={t.clinicalTitle} {...fade(1)}>
+      <motion.section id="sum" className={clsx('panel summary', report.verdict)} aria-label={t.clinicalTitle} {...fade(1)}>
         <div className="sum-main">
           <span className="eyebrow">{t.clinicalTitle}</span>
           <span className={clsx('pill', report.verdict === 'normal' ? 'good' : 'bad')} style={{ alignSelf: 'flex-start' }}><span className="dot" />{t.verdict[report.verdict]}</span>
           <p className="sum-concl">{conclText}</p>
-          <a className="small" href="#report" onClick={(e) => { e.preventDefault(); document.getElementById('report')?.scrollIntoView({ behavior: 'smooth' }); }}>{t.toReport}</a>
+          <a className="small" href="#report" onClick={(e) => { e.preventDefault(); jumpTo('report'); }}>{t.toReport}</a>
         </div>
         {facts.map((f) => (
           <div className="sum-fact" key={f.k}>
@@ -179,7 +198,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
         ))}
       </motion.section>
 
-      <motion.section className="panel" {...fade(5)}>
+      <motion.section className="panel" id="eeg" {...fade(5)}>
         <div className="panel-h"><h2>{t.timeline}</h2><span className="time muted">{t.durationLbl} {mmss(s.durationS)}</span></div>
         <Legend />
         <Timeline study={s} marker={page.t0} onPick={goT} onStep={step} label={t.timeline} />
@@ -237,9 +256,28 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           </dl>
           <p className="muted small">{t.bgNote(mmss(s.background.windowS[0]), mmss(s.background.windowS[1]))}</p>
         </motion.section>
-        <motion.section className="panel" {...fade(8)}>
+        <motion.section className="panel" id="findings" {...fade(8)}>
           <div className="panel-h"><h2>{t.eventsTitle}</h2><span className="muted small">{s.events.length}</span></div>
-          <div className="scroll">
+          <ul className="ev-list">
+            {[...hit, ...s.events.filter((e) => e.doubtful), ...(showFalse ? s.events.filter((e) => !e.match && !e.doubtful) : [])].map((e) => (
+              <li key={e.start}>
+                <button type="button" onClick={() => goT(e.start)}>
+                  <span className="l1">
+                    <span className="mono">{mmss(e.start)}</span>
+                    <span className="mono muted">{e.end - e.start} {t.s} · z {num(e.peak, lang)}</span>
+                    <span className={clsx('pill', e.match ? 'info' : e.doubtful ? 'neutral' : 'warn')}>{e.match ? t.vHit : e.doubtful ? t.vDoubt : t.vFalse}</span>
+                  </span>
+                  <span className="l2 muted">{e.channels.slice(0, 3).join(', ')}{e.note && ` · ${e.note[lang]}`}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {s.events.some((e) => !e.match && !e.doubtful) && (
+            <button type="button" className="btn sm ghost ev-more" onClick={() => setShowFalse((v) => !v)} aria-expanded={showFalse}>
+              {showFalse ? t.lessFalse : t.moreFalse(s.events.filter((e) => !e.match && !e.doubtful).length)}
+            </button>
+          )}
+          <div className="scroll ev-table">
             <table className="ev">
               <thead><tr><th>{t.colTime}</th><th>{t.colDur}</th><th>{t.colCh}</th><th>{t.colZ}</th><th>{t.colVerdict}</th></tr></thead>
               <tbody>
@@ -263,29 +301,49 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           <div className="panel-h">
             <h2>{t.reportTitle}</h2>
             <div className="row">
+              {!signed && <button className="btn sm" type="button" onClick={() => setEditing((v) => !v)} aria-pressed={editing}>{editing ? t.done : t.edit}</button>}
               <button className="btn sm" type="button" onClick={copy}>{copied ? t.copied : t.copy}</button>
             </div>
           </div>
+          {!editing && <p className="muted small">{t.tapHint}</p>}
           <div className="report">
             {report.sections.map((sec) => (
               <div key={sec.key} className={clsx('rsec', sec.key === 'conclusion' && 'concl')}>
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <h3>{sec.title}</h3>
-                  {!signed && <button className="btn sm ghost" type="button" onClick={() => setEditing(editing === sec.key ? null : sec.key)}>{editing === sec.key ? t.done : t.edit}</button>}
-                </div>
-                {editing === sec.key ? (
+                <h3>{sec.title}</h3>
+                {editing ? (
                   <textarea id={'edit-' + sec.key} className="edit" value={secText(sec)} onChange={(e) => setEdits({ ...edits, [sec.key]: e.target.value })} />
                 ) : edits[sec.key] !== undefined ? <p>{edits[sec.key]}</p> : (
-                  <p>{sec.sentences.map((x, i) => (
-                    <span key={i}>
-                      <span className={clsx('sent click', focus === sec.key + i && 'focus')} onClick={() => setFocus(sec.key + i)} onKeyDown={(e) => e.key === 'Enter' && setFocus(sec.key + i)} role="button" tabIndex={0}>{x.text}</span>{' '}
-                    </span>
-                  ))}</p>
+                  <>
+                    <p>{sec.sentences.map((x, i) => {
+                      const k = sec.key + i;
+                      return (
+                        <span key={i}>
+                          <span className={clsx('sent click', focus === k && 'focus')} onClick={() => setFocus(focus === k ? null : k)}
+                            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setFocus(focus === k ? null : k))}
+                            role="button" tabIndex={0} aria-expanded={focus === k}>{x.text}</span>{' '}
+                        </span>
+                      );
+                    })}</p>
+                    <AnimatePresence initial={false}>
+                      {sec.sentences.map((x, i) => focus === sec.key + i && (
+                        <motion.div key={i} className="why-inline" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+                          <div className="why-in">
+                            <div className="rulecard"><b>{t.rule}:</b> {x.rule}</div>
+                            <div className="chips ev-chips">
+                              {x.evidence.map((ev) => ev.t !== undefined
+                                ? <button key={ev.label} type="button" className="chip" onClick={() => goT(ev.t!)}><span className="mono">{ev.label}</span></button>
+                                : <span key={ev.label} className="chip static"><span className="mono">{ev.label}</span></span>)}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </>
                 )}
               </div>
             ))}
           </div>
-          <div className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+          <div className="approve-bar">
             {signed ? (
               <>
                 <motion.span className="stamp" initial={{ scale: 1.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
@@ -294,7 +352,7 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
                 <button className="btn sm ghost" type="button" onClick={() => setSigned(null)}>{t.unsign}</button>
               </>
             ) : (
-              <form className="row" style={{ flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (doc.trim()) { setEditing(null); toast.success(t.approvedToast, { description: doc.trim() }); setSigned({ name: doc.trim(), at: new Date().toLocaleString(ru ? 'ru-RU' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) }); } }}>
+              <form className="row" style={{ flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (doc.trim()) { setEditing(false); toast.success(t.approvedToast, { description: doc.trim() }); setSigned({ name: doc.trim(), at: new Date().toLocaleString(ru ? 'ru-RU' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) }); } }}>
                 <input id="physician" className="txt" placeholder={t.physicianPh} value={doc} onChange={(e) => setDoc(e.target.value)} aria-label={t.physician} />
                 <button className="btn primary" type="submit" disabled={!doc.trim()}>{t.sign}</button>
               </form>
@@ -303,12 +361,12 @@ export default function ResultsScreen({ study: s, header, onNew }: Props) {
           <p className="muted small">{t.reportNote}</p>
         </motion.section>
 
-        <motion.section className="panel" {...fade(10)}>
+        <motion.section className="panel how-built" {...fade(10)}>
           <h2>{t.howBuilt}</h2>
           <p className="muted small">{ru ? 'Каждое предложение черновика получено правилом из измеренных показателей. Нажмите на предложение или основание, чтобы перейти к фрагменту ЭЭГ.' : 'Each draft sentence comes from a rule applied to measured values. Tap a sentence or its evidence to open the EEG page.'}</p>
           <div className="why">
             {report.sections.flatMap((sec) => sec.sentences.map((x, i) => (
-              <div key={sec.key + i} className="why-item" style={focus === sec.key + i ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined} onMouseEnter={() => setFocus(sec.key + i)} onFocus={() => setFocus(sec.key + i)}>
+              <div key={sec.key + i} className="why-item" style={focus === sec.key + i ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined}>
                 <span className="eyebrow">{sec.title}</span>
                 <div className="rulecard"><b>{t.rule}:</b> {x.rule}</div>
                 <div className="chips">

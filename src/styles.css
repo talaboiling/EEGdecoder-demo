@@ -106,7 +106,7 @@ a { color: var(--accent); }
 @media (max-width: 1023px) {
   .shell { display: block; }
   .rail { display: none; }
-  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; position: sticky; top: 0; z-index: 20; background: var(--rail); color: var(--rail-fg); padding-block: calc(10px + env(safe-area-inset-top, 0px)) 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; position: relative; background: var(--rail); color: var(--rail-fg); padding-block: calc(10px + env(safe-area-inset-top, 0px)) 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .top .brand b { font-size: 16px; }
   .msteps { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .msteps button { width: 100%; background: none; border: 0; padding: 8px 0 10px; display: flex; flex-direction: column; gap: 6px; text-align: left; font-size: 13px; color: var(--rail-muted); cursor: pointer; min-height: 44px; }
@@ -339,6 +339,40 @@ ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
   .seg button { padding: 0 9px; }
   .pg { flex-basis: 58px; }
 }
+/* ---- mobile report density ---- */
+.secbar { display: none; }
+#sum, #eeg, #viewer, #findings, #report { scroll-margin-top: 16px; }
+@media (max-width: 1023px) {
+  .secbar { display: flex; gap: 4px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; margin: -4px 0 -4px; padding: 6px; background: color-mix(in srgb, var(--panel) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; scrollbar-width: none; }
+  .secbar button { flex: 1 0 auto; min-height: 40px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: 500 14px var(--font); cursor: pointer; white-space: nowrap; }
+  .secbar button[aria-current] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  #sum, #eeg, #viewer, #findings, #report { scroll-margin-top: 68px; }
+}
+.sent.click { text-decoration: underline dotted var(--grid-major); text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+.sent.focus { text-decoration-color: var(--accent); }
+.why-inline { overflow: hidden; }
+.why-in { padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ev-chips .chip { min-height: 34px; padding: 4px 9px; }
+.approve-bar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--line); box-shadow: 0 -8px 16px -12px rgba(13, 26, 33, 0.25); }
+.approve-bar form { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; }
+.approve-bar input.txt { flex: 1 1 auto; min-width: 0; width: 100%; }
+.approve-bar .btn { flex: none; }
+@media (max-width: 420px) { .approve-bar .btn.primary { padding: 0 12px; } }
+.ev-list { display: none; list-style: none; margin: 0; padding: 0; }
+.ev-more { display: none; align-self: flex-start; }
+@media (max-width: 760px) {
+  .ev-table { display: none; }
+  .ev-list { display: flex; flex-direction: column; }
+  .ev-more { display: inline-flex; }
+  .ev-list li + li { border-top: 1px solid var(--grid); }
+  .ev-list button { width: 100%; background: none; border: 0; text-align: left; padding: 10px 2px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-height: 48px; }
+  .ev-list .l1 { display: flex; align-items: center; gap: 10px; font-size: 14.5px; }
+  .ev-list .l1 .pill { margin-left: auto; }
+  .ev-list .l2 { font-size: 13px; line-height: 1.4; }
+  .how-built { display: none; }
+  .approve-bar { margin: 0 -14px; padding-inline: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
